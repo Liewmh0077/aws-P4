@@ -52,13 +52,9 @@
 </head>
 <body>
 	<h1>Delete Employee</h1>
-	<form>
-		{% if deleted %}
+	<form action="/delete" autocomplete="on" method = "GET">
 		<p>Employee with ID {{ id }} has been deleted.</p>
-		{% else %}
-		<p>Employee with ID {{ id }} does not exist or has already been deleted.</p>
-		{% endif %}
-		<button type="submit" formaction="/">Back to Home</button>
+		<button type="submit" >Back to Home</button>
 	</form>
 </body>
 </html>
