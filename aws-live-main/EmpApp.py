@@ -1,145 +1,60 @@
-from flask import Flask, render_template, request
-from pymysql import connections
-import os
-import boto3
-from config import *
-
-app = Flask(__name__)
-
-bucket = custombucket
-region = customregion
-
-db_conn = connections.Connection(
-    host=customhost,
-    port=3306,
-    user=customuser,
-    password=custompass,
-    db=customdb
-
-)
-output = {}
-table = 'employee'
-
-
-@app.route("/", methods=['GET', 'POST'])
-def home():
-    return render_template('home.html')
-
-@app.route("/add", methods=['GET', 'POST'])
-def add():
-    return render_template('AddEmp.html')
-
-@app.route("/delete", methods=['GET', 'POST'])
-def delete():
-    return render_template('DeleteEmp.html')
-
-
-@app.route("/about", methods=['GET','POST'])
-def about():
-    return render_template('AboutUs.html')
-
-@app.route("/get", methods=['GET', 'POST'])
-def get():
-    return render_template('GetEmp.html')
-
-
-@app.route("/addemp", methods=['POST'])
-def AddEmp():
-    emp_id = request.form['emp_id']
-    first_name = request.form['first_name']
-    last_name = request.form['last_name']
-    pri_skill = request.form['pri_skill']
-    location = request.form['location']
-    payscale = request.form['payscale']
-    hire_date = request.form['hire_date']
-    emp_image_file = request.files['emp_image_file']
-
-    insert_sql = "INSERT INTO employee VALUES (%s, %s, %s, %s, %s, %s, %s)"
-    cursor = db_conn.cursor()
-
-    if emp_image_file.filename == "":
-        return "Please select a file"
-
-    try:
-
-        cursor.execute(insert_sql, (emp_id, first_name, last_name, pri_skill, location, payscale, hire_date))
-        db_conn.commit()
-        emp_name = "" + first_name + " " + last_name
-        # Uplaod image file in S3 #
-        emp_image_file_name_in_s3 = "emp-id-" + str(emp_id) + "_image_file"
-        s3 = boto3.resource('s3')
-
-        try:
-            print("Data inserted in MySQL RDS... uploading image to S3...")
-            s3.Bucket(custombucket).put_object(Key=emp_image_file_name_in_s3, Body=emp_image_file)
-            bucket_location = boto3.client('s3').get_bucket_location(Bucket=custombucket)
-            s3_location = (bucket_location['LocationConstraint'])
-
-            if s3_location is None:
-                s3_location = ''
-            else:
-                s3_location = '-' + s3_location
-
-            object_url = "https://s3{0}.amazonaws.com/{1}/{2}".format(
-                s3_location,
-                custombucket,
-                emp_image_file_name_in_s3)
-
-        except Exception as e:
-            return str(e)
-
-    finally:
-        cursor.close()
-
-    print("all modification done...")
-    return render_template('AddEmpOutput.html', name=emp_name)
-
-
-# Define the fetchdata route
-@app.route('/fetchdata', methods=['POST'])
-def fetchdata():
-    emp_id = request.form['emp_id']
-    cursor = db_conn.cursor()
-    cursor.execute("SELECT * FROM employee WHERE emp_id = %s", (emp_id,))
-    result = cursor.fetchone()
-    cursor.close()
-    if result is not None:
-        emp_data = {
-            'id': result[0],
-            'fname': result[1],
-            'lname': result[2],
-            'pri_skill': result[3],
-            'location': result[4],
-            'payscale': result[5],
-            'hiredate': result[6]
-        }
-        return render_template('GetEmpOutput.html', **emp_data)
-
-@app.route("/deleteemp", methods=['POST'])
-def DeleteEmp():
-    emp_id = request.form['emp_id']
-    cursor = db_conn.cursor()
-
-    try:
-        # Delete image file from S3 bucket
-        emp_image_file_name_in_s3 = "emp-id-" + str(emp_id) + "_image_file"
-        s3 = boto3.resource('s3')
-        s3.Object(custombucket, emp_image_file_name_in_s3).delete()
-
-        # Delete employee from database
-        cursor.execute("DELETE FROM employee WHERE emp_id = %s", (emp_id,))
-        db_conn.commit()
-
-    except Exception as e:
-        return str(e)
-
-    finally:
-        cursor.close()
-
-    print("all modification done...")
-    return render_template('DeleteEmpOutput.html', id=emp_id)
-
-    
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=80, debug=True)
-
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Delete Employee</title>
+	<style>
+		body {
+			background-image: url("123.png");
+			background-size: cover;
+			background-repeat: no-repeat;
+			background-attachment: fixed;
+			font-family: Arial, sans-serif;
+			margin: 0;
+			padding: 0;
+		}
+		h1 {
+			color: dodgerblue;
+			text-align: center;
+			font-size: 36px;
+			margin-top: 50px;
+		}
+		form {
+			margin: auto;
+			max-width: 800px;
+			padding: 20px;
+			box-sizing: border-box;
+			background-color: rgba(255, 255, 255, 0.9);
+			border-radius: 10px;
+			box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+		}
+		label {
+			display: block;
+			font-size: 20px;
+			font-weight: bold;
+			margin-top: 20px;
+		}
+		button[type="submit"] {
+			background-color: grey;
+			color: white;
+			padding: 10px 20px;
+			font-size: 20px;
+			border: none;
+			border-radius: 5px;
+			cursor: pointer;
+			font-style: oblique;
+			margin-top: 20px;
+			transition: background-color .3s;
+		}
+		button[type="submit"]:hover {
+			background-color: #444;
+		}
+	</style>
+</head>
+<body>
+	<h1>Delete Employee</h1>
+	<form action="/delete" autocomplete="on" method = "GET">
+		<p>Employee with ID {{ id }} has been deleted.</p>
+		<button type="submit" >Back to Home</button>
+	</form>
+</body>
+</html>
